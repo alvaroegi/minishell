@@ -6,6 +6,7 @@
 #include<string.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "parser.h"
 
 pid_t pid;
@@ -28,6 +29,7 @@ main(void) {
 		pipe(p_par);
 		pipe(p_impar);
 		line = tokenize(buf);
+		if(line->commands[0].filename == NULL && (strcmp(line->commands[0].argv[0], "cd") != 0) && (strcmp(line->commands[0].argv[0], "exit") != 0) && (strcmp(line->commands[0].argv[0], "umask") != 0)) printf("%s: no se encuentra el mandato\n",line->commands[0].argv[0]);
 		if(strcmp(line->commands[0].argv[0], "cd") == 0) cd(line->commands);
 		if(strcmp(line->commands[0].argv[0], "exit") == 0) exit(0);
 		if(strcmp(line->commands[0].argv[0], "umask") == 0) umaskC(line->commands);
@@ -47,6 +49,11 @@ main(void) {
 		}
 		if (line->redirect_error != NULL) {
 			printf("redirección de error: %s\n", line->redirect_error);
+			mode_t mode = 000;
+			int e = creat(line->redirect_error, mode);
+			if(e < 0){
+				printf("Error en la creacion del archivo");
+			}
 		}
 		if (line->background) {
 			printf("comando a ejecutarse en background\n");
@@ -57,7 +64,10 @@ main(void) {
 				printf("  argumento %d: %s\n", j, line->commands[i].argv[j]);
 			}
 			pid = fork();
-			if(pid == 0){ //HIJO
+			if(pid < 0) { //ERROR
+				fprintf(stderr, "Fallo el fork().\n%s\n", strerror(errno));
+				exit(1);
+			}else if(pid == 0){ //HIJO
 				if (i == 0){ //Primer hijo
 					close(p_impar[0]);
 					close(p_impar[1]);
@@ -106,7 +116,14 @@ main(void) {
 					} else {
 						dup2(fd,0);
 					}
-
+				}
+				if (line->redirect_error != NULL){
+					int fd = open(line->redirect_input, mode);
+					if(fd < 0){
+						printf("Error al abrir el archivo llamado %s\n",line->redirect_error);
+					} else {
+						dup2(fd,2);
+					}
 				}
 				execvp(line->commands[i].filename, line->commands[i].argv);
 				fprintf(stderr, "Se ha producido un error\n");
@@ -130,7 +147,7 @@ main(void) {
 		close(p_impar[1]);
 		
 		for(i = 0; i < line->ncommands; i++){
-			printf("Valor de pid: %d\n",pid);
+			//printf("Valor de pid: %d\n",pid);
 			waitpid(pid, &status, 0);
 			if(WIFEXITED(status) != 0){
 				if(WEXITSTATUS(status) != 0){
