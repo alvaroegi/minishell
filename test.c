@@ -13,6 +13,9 @@ int p_par[2];
 int p_impar[2];
 int status;
 
+
+int cd(tcommand * com);
+
 int
 main(void) {
 	char buf[1024];
@@ -24,6 +27,7 @@ main(void) {
 		pipe(p_par);
 		pipe(p_impar);
 		line = tokenize(buf);
+		if(strcmp(line->commands[0].argv[0], "cd") == 0) cd(line->commands);
 		if(strcmp(line->commands[0].argv[0], "exit") == 0) exit(0);
 		if (line==NULL) {
 			continue;
@@ -85,7 +89,7 @@ main(void) {
 				}
 
 				mode_t mode = O_RDWR;
-				if (line->redirect_output != NULL){
+				if (line->redirect_output != NULL && i == line->ncommands -1){
 					int fd = open(line->redirect_output, mode);
 					if(fd < 0) {
 						printf("Error al abrir el archivo llamado %s\n",line->redirect_output);
@@ -93,7 +97,7 @@ main(void) {
 						dup2(fd,1);
 					}
 				}
-				if (line->redirect_input != NULL){
+				if (line->redirect_input != NULL && i == 0){
 					int fd = open(line->redirect_input, mode);
 					if(fd < 0) {
 						printf("Error al abrir el archivo llamado %s\n",line->redirect_input);
@@ -117,6 +121,7 @@ main(void) {
 					pipe(p_par);
 				}		
 			}
+		}
 		close(p_par[0]);
 		close(p_par[1]);
 		close(p_impar[0]);
@@ -131,10 +136,45 @@ main(void) {
 			}
 		}
 		printf("msh> ");
-		}
+		
 	}
 
 
 	return 0;
 }
+
+int cd(tcommand * com){
+	char buffer[100];
+	if(com -> argc <= 1){
+		printf("%s\n", getcwd(buffer, 100));
+		if(chdir(getenv("HOME")) != 0){
+			fprintf(stderr, "No ha podido acceder a HOME\n");
+			return 1;
+		} else {
+			printf("%s\n", getcwd(buffer, 100));
+		}
+	} else if(com -> argc == 2) {
+		printf("%s\n", getcwd(buffer, 100));
+		if(chdir(com -> argv[1]) != 0){
+			fprintf(stderr, "No ha podido acceder al directorio del argumento\n");
+			return 1;
+		} else {
+			printf("%s\n", getcwd(buffer, 100));
+		}
+	} else {
+		fprintf(stderr, "Mas de un argumento, fin del programa\n");
+		return 1;
+	}
+	
+	return 0;
+
+}
+
+
+
+
+
+
+
+
 
