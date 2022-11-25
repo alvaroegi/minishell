@@ -15,6 +15,7 @@ int status;
 
 
 int cd(tcommand * com);
+int umaskC(tcommand * com);
 
 int
 main(void) {
@@ -29,6 +30,7 @@ main(void) {
 		line = tokenize(buf);
 		if(strcmp(line->commands[0].argv[0], "cd") == 0) cd(line->commands);
 		if(strcmp(line->commands[0].argv[0], "exit") == 0) exit(0);
+		if(strcmp(line->commands[0].argv[0], "umask") == 0) umaskC(line->commands);
 		if (line==NULL) {
 			continue;
 		}
@@ -37,8 +39,8 @@ main(void) {
 		}
 		if (line->redirect_output != NULL) {
 			printf("redirección de salida: %s\n", line->redirect_output);
-			mode_t mode = S_IRUSR | S_IWUSR | S_IXUSR;
-			int s = creat(line->redirect_output,mode);
+			mode_t mode = 000;
+			int s = creat(line->redirect_output, mode);
 			if(s < 0){
 				printf("Error en la creación del archivo");
 			}
@@ -128,7 +130,8 @@ main(void) {
 		close(p_impar[1]);
 		
 		for(i = 0; i < line->ncommands; i++){
-			wait(&status);
+			printf("Valor de pid: %d\n",pid);
+			waitpid(pid, &status, 0);
 			if(WIFEXITED(status) != 0){
 				if(WEXITSTATUS(status) != 0){
 					printf("El contenido no se ha ejecutado correctamente\n");
@@ -168,6 +171,16 @@ int cd(tcommand * com){
 	
 	return 0;
 
+}
+
+int umaskC(tcommand * com){
+	if(com -> argc == 2){
+		int mask = (int) strtol(com -> argv[1], NULL, 8);
+		umask(mask); //cambia a la máscara nueva, pero en mask se guarda la máscara antigua
+		printf("La mascara es : %d\n",mask);
+		return 0;
+	}
+	return 1;
 }
 
 
