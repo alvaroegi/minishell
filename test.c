@@ -13,29 +13,40 @@ pid_t pid;
 int p_par[2];
 int p_impar[2];
 int status;
+int a,b; //contador arrays hijos
 
 
 int cd(tcommand * com);
 int umaskC(tcommand * com);
+void fg(int* hijoB, tcommand * com);
 
 int
 main(void) {
 	char buf[1024];
 	tline * line;
-	int i,j;
-
+	int i;
+	
+	int* child;
+	child = malloc(sizeof(int));
+	a = 0;
+	
+	int* childB;
+	childB = malloc(sizeof(int));
+	b = 0;
+	
 	printf("msh> ");
 	while (fgets(buf, 1024, stdin)) {
 		pipe(p_par);
 		pipe(p_impar);
 		line = tokenize(buf);
-		if(line->commands[0].filename == NULL && (strcmp(line->commands[0].argv[0], "cd") != 0) && (strcmp(line->commands[0].argv[0], "exit") != 0) && (strcmp(line->commands[0].argv[0], "umask") != 0)) printf("%s: no se encuentra el mandato\n",line->commands[0].argv[0]);
-		if(strcmp(line->commands[0].argv[0], "cd") == 0) cd(line->commands);
-		if(strcmp(line->commands[0].argv[0], "exit") == 0) exit(0);
-		if(strcmp(line->commands[0].argv[0], "umask") == 0) umaskC(line->commands);
-		if (line==NULL) {
-			continue;
-		}
+		if (line != NULL){ 
+			if(strcmp(line->commands[0].argv[0], "cd") == 0) cd(line->commands); 
+			else if(strcmp(line->commands[0].argv[0], "exit") == 0) exit(0);
+			else if(strcmp(line->commands[0].argv[0], "umask") == 0) umaskC(line->commands);
+			else if(strcmp(line->commands[0].argv[0], "fg") == 0) fg(childB,line->commands);
+			else if(line->commands[0].filename == NULL) printf("%s: no se encuentra el mandato\n",line->commands[0].argv[0]);
+		} else continue;	
+		
 		if (line->redirect_input != NULL) {
 			printf("redirección de entrada: %s\n", line->redirect_input);
 		}
@@ -59,11 +70,13 @@ main(void) {
 			printf("comando a ejecutarse en background\n");
 		}
 		for (i=0; i<line->ncommands; i++) {
-			printf("orden %d (%s):\n", i, line->commands[i].filename);
-			for (j=0; j<line->commands[i].argc; j++) {
+			//printf("orden %d (%s):\n", i, line->commands[i].filename);
+			/*for (j=0; j<line->commands[i].argc; j++) {
 				printf("  argumento %d: %s\n", j, line->commands[i].argv[j]);
-			}
+			}*/
 			pid = fork();
+			
+			
 			if(pid < 0) { //ERROR
 				fprintf(stderr, "Fallo el fork().\n%s\n", strerror(errno));
 				exit(1);
@@ -117,7 +130,7 @@ main(void) {
 						dup2(fd,0);
 					}
 				}
-				if (line->redirect_error != NULL){
+				if (line->redirect_error != NULL && i == line->ncommands -1){
 					int fd = open(line->redirect_input, mode);
 					if(fd < 0){
 						printf("Error al abrir el archivo llamado %s\n",line->redirect_error);
@@ -130,6 +143,15 @@ main(void) {
 				exit(1);
 			
 			} else { //Padre
+				if (line->background){
+					childB[b] = pid;
+					printf("Hijo en background %d: %d\n",b,childB[b]);
+					b++;				
+				} else {
+					child[a] = pid;
+					printf("Hijo %d: %d\n",a,child[a]);
+					a++;
+				}
 				if(i % 2 == 0) { //Pares (Reseteamos las pipes)
 					close(p_impar[0]);
 					close(p_impar[1]);
@@ -146,7 +168,19 @@ main(void) {
 		close(p_impar[0]);
 		close(p_impar[1]);
 		
-		for(i = 0; i < line->ncommands; i++){
+		//HIJOS EN BACKGROUND
+		int p;
+		for(p = 0; p<b; p++){
+			waitpid(childB[p],&status,WNOHANG);			
+		} 
+		
+		//HIJOS EN FOREGROUND
+		int o;
+		for(o = 0; o<a; o++){
+			waitpid(child[o],&status,0);
+		}
+		
+		/*for(i = 0; i < line->ncommands; i++){
 			//printf("Valor de pid: %d\n",pid);
 			waitpid(pid, &status, 0);
 			if(WIFEXITED(status) != 0){
@@ -154,11 +188,13 @@ main(void) {
 					printf("El contenido no se ha ejecutado correctamente\n");
 				}
 			}
-		}
+		}*/
 		printf("msh> ");
 		
 	}
 
+	free(child);
+	free(childB);
 
 	return 0;
 }
@@ -199,6 +235,20 @@ int umaskC(tcommand * com){
 	}
 	return 1;
 }
+
+void fg(int* hijoB, tcommand * com){
+	int num;
+	num = strtol(com->argv[1],NULL,10);
+	if(com -> argc == 1 || num >= b) {
+		printf("msh: actual: no existe ese trabajo");
+		//si hay en bg, pasar a fg el ultimo de la lista
+	} else if(com -> argc == 2){
+		waitpid(hijoB[num], &status, 0);
+	} 
+	
+}
+
+
 
 
 
