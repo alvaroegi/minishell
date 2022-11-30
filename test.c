@@ -282,13 +282,13 @@ void jobs(int cont){
 			estado[p] = 1;
 		}			
 	} 
-	for(p = 0; p < cont; p++){
-		if(p%2 == 0){
-			if(estado[p] == 0) printf("[%d]+ Ejecutando 	%s\n",p+1,arjobs[p]);
-                	else if(estado[p] == 1) printf("[%d]+ Hecho 	%s\n",p+1,arjobs[p]);		
+	for(int i = 0; i < cont; i++){
+		if(i%2 == 0){
+			if(estado[i] == 0) printf("[%d]+ Ejecutando 	%s\n",i+1,arjobs[i]);
+                	else if(estado[i] == 1) printf("[%d]+ Hecho 	%s\n",i+1,arjobs[i]);		
 		} else {
-			if(estado[p] == 0) printf("[%d]- Ejecutando 	%s\n",p+1,arjobs[p]);
-                	else if(estado[p] == 1) printf("[%d]- Hecho 	%s\n",p+1,arjobs[p]);
+			if(estado[i] == 0) printf("[%d]- Ejecutando 	%s\n",i+1,arjobs[i]);
+                	else if(estado[i] == 1) printf("[%d]- Hecho 	%s\n",i+1,arjobs[i]);
 		}
 	
 	}
