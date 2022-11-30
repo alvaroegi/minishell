@@ -16,19 +16,23 @@ int status;
 int a,b,c; //contador arrays hijos y jobs
 int* childB;
 int* estado;
-char *arjobs[50];
+int done1, done2 = 0; //done1: el jobs impar ya ha acabado, no lo muestra mas
+		  //done2: el jobs par ya ha acabado, no lo muestra mas
+
 
 
 int cd(tcommand * com);
 int umaskC(tcommand * com);
 void fg(int* hijoB, tcommand * com);
-void jobs(int cont);
+void jobs(char** arj, int cont);
 
 int
 main(void) {
 	char buf[1024];
+	char aux[1024];
 	tline * line;
 	int i;
+	char *arjobs[50];
 	
 	int* child;
 	
@@ -56,7 +60,7 @@ main(void) {
 			}
 			else if(strcmp(line->commands[0].argv[0], "umask") == 0) umaskC(line->commands);
 			else if(strcmp(line->commands[0].argv[0], "fg") == 0) fg(childB,line->commands);
-			else if(strcmp(line->commands[0].argv[0], "jobs") == 0) jobs(c);
+			else if(strcmp(line->commands[0].argv[0], "jobs") == 0) jobs(arjobs,c);
 			else if(line->commands[0].filename == NULL) printf("%s: no se encuentra el mandato\n",line->commands[0].argv[0]);
 			else {		 					
 				if (line->redirect_input != NULL) {
@@ -80,8 +84,9 @@ main(void) {
 				}
 				if (line->background) {
 					//printf("comando a ejecutarse en background\n");
-					arjobs[c] = buf;
-					printf("Jobs %d: %s\n",c,arjobs[c]);
+					buf[strlen(buf) -1] = '\0';
+					strcpy(aux,buf);
+					arjobs[c] = aux;
 					c++;
 				}
 				for (i=0; i<line->ncommands; i++) {
@@ -158,7 +163,8 @@ main(void) {
 						exit(1);
 					
 					} else { //Padre
-						if (line->background){							
+						if (line->background){	
+							printf("[%d]: %d\n",c,pid);						
 							childB[b] = pid;
 							//printf("Hijo en background %d: %d\n",b,childB[b]);
 							b++;	
@@ -274,7 +280,7 @@ void fg(int* hijoB, tcommand * com){
 	
 }
 
-void jobs(int cont){
+void jobs(char** arj,int cont){	
 	int p;
 	for(p = 0; p<b; p++){
 		int ok = waitpid(childB[p],&status,WNOHANG);
@@ -284,11 +290,23 @@ void jobs(int cont){
 	} 
 	for(int i = 0; i < cont; i++){
 		if(i%2 == 0){
-			if(estado[i] == 0) printf("[%d]+ Ejecutando 	%s\n",i+1,arjobs[i]);
-                	else if(estado[i] == 1) printf("[%d]+ Hecho 	%s\n",i+1,arjobs[i]);		
+			if(estado[i] == 0){ 
+				printf("[%d]+ Ejecutando 	%s\n",i+1,arj[i]);
+				done1 = 0;
+			}
+                	else if(estado[i] == 1){ 
+                		if(done1 != 1) printf("[%d]+ Hecho 	%s\n",i+1,arj[i]);
+                		done1 = 1;               	
+                	}		
 		} else {
-			if(estado[i] == 0) printf("[%d]- Ejecutando 	%s\n",i+1,arjobs[i]);
-                	else if(estado[i] == 1) printf("[%d]- Hecho 	%s\n",i+1,arjobs[i]);
+			if(estado[i] == 0){ 
+				printf("[%d]- Ejecutando 	%s\n",i+1,arj[i]);
+				done2 = 0;
+			}
+                	else if(estado[i] == 1){ 
+                		if(done2 != 1) printf("[%d]- Hecho 	%s\n",i+1,arj[i]);
+                		done2 = 1;
+                	}
 		}
 	
 	}
