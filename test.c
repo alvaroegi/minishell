@@ -13,12 +13,16 @@ pid_t pid;
 int p_par[2];
 int p_impar[2];
 int status;
-int a,b; //contador arrays hijos
+int a,b,c; //contador arrays hijos y jobs
+int* childB;
+int* estado;
+char *arjobs[50];
 
 
 int cd(tcommand * com);
 int umaskC(tcommand * com);
 void fg(int* hijoB, tcommand * com);
+void jobs(int cont);
 
 int
 main(void) {
@@ -26,35 +30,40 @@ main(void) {
 	tline * line;
 	int i;
 	
-	a = 0;
 	int* child;
-	child = malloc(sizeof(int));
 	
 	b = 0;
-	int* childB;
-	childB = malloc(sizeof(int));
-	
+	childB = (int*)malloc(sizeof(int));
+	estado = (int*)malloc(sizeof(int));
+		
+	c = 0;
 	
 	printf("msh> ");
 	while (fgets(buf, 1024, stdin)) {
 		//reiniciamos los valores que recorre el array para que se realoje bien la memoria con el malloc
 		a = 0;
+		child = (int*)malloc(sizeof(int));
 		pipe(p_par);
 		pipe(p_impar);
 		line = tokenize(buf);
 		
 		if (line->ncommands > 0){ 			
 			if(strcmp(line->commands[0].argv[0], "cd") == 0) cd(line->commands); 	
-			else if(strcmp(line->commands[0].argv[0], "exit") == 0) exit(0);
+			else if(strcmp(line->commands[0].argv[0], "exit") == 0){
+				free(childB);
+				free(estado);
+				exit(0);
+			}
 			else if(strcmp(line->commands[0].argv[0], "umask") == 0) umaskC(line->commands);
 			else if(strcmp(line->commands[0].argv[0], "fg") == 0) fg(childB,line->commands);
+			else if(strcmp(line->commands[0].argv[0], "jobs") == 0) jobs(c);
 			else if(line->commands[0].filename == NULL) printf("%s: no se encuentra el mandato\n",line->commands[0].argv[0]);
 			else {		 					
 				if (line->redirect_input != NULL) {
-					printf("redirección de entrada: %s\n", line->redirect_input);
+					//printf("redirección de entrada: %s\n", line->redirect_input);
 				}
 				if (line->redirect_output != NULL) {
-					printf("redirección de salida: %s\n", line->redirect_output);
+					//printf("redirección de salida: %s\n", line->redirect_output);
 					mode_t mode = 000;
 					int s = creat(line->redirect_output, mode);
 					if(s < 0){
@@ -62,7 +71,7 @@ main(void) {
 					}
 				}
 				if (line->redirect_error != NULL) {
-					printf("redirección de error: %s\n", line->redirect_error);
+					//printf("redirección de error: %s\n", line->redirect_error);
 					mode_t mode = 000;
 					int e = creat(line->redirect_error, mode);
 					if(e < 0){
@@ -70,7 +79,10 @@ main(void) {
 					}
 				}
 				if (line->background) {
-					printf("comando a ejecutarse en background\n");
+					//printf("comando a ejecutarse en background\n");
+					arjobs[c] = buf;
+					printf("Jobs %d: %s\n",c,arjobs[c]);
+					c++;
 				}
 				for (i=0; i<line->ncommands; i++) {
 					//printf("orden %d (%s):\n", i, line->commands[i].filename);
@@ -146,15 +158,17 @@ main(void) {
 						exit(1);
 					
 					} else { //Padre
-						if (line->background){
+						if (line->background){							
 							childB[b] = pid;
-							//printf("Hijo en background %d: %d\n",b,childB[b]);	
+							//printf("Hijo en background %d: %d\n",b,childB[b]);
+							b++;	
 							childB = realloc(childB, (b+1)*sizeof(int));		
-							b++;
+							estado = realloc(estado, (b+1)*sizeof(int));
+							
 						} else {
 							child[a] = pid;
-							child = realloc(child, (a+1)*sizeof(int));
-							a++;						
+							a++;
+							child = realloc(child, (a+1)*sizeof(int));					
 						}
 						
 						if(i % 2 == 0) { //Pares (Reseteamos las pipes)
@@ -176,7 +190,10 @@ main(void) {
 				//HIJOS EN BACKGROUND
 				int p;
 				for(p = 0; p<b; p++){
-					waitpid(childB[p],&status,WNOHANG);			
+					int ok = waitpid(childB[p],&status,WNOHANG);
+					if (ok != 0) {
+						estado[p] = 1;
+					}			
 				} 
 				
 				//HIJOS EN FOREGROUND
@@ -198,13 +215,11 @@ main(void) {
 				}*/
 			}
 		}
+		free(child);
 		printf("msh> ");
 		
 		
 	}
-
-	free(child);
-	free(childB);
 
 	return 0;
 }
@@ -259,6 +274,28 @@ void fg(int* hijoB, tcommand * com){
 	
 }
 
+void jobs(int cont){
+	int p;
+	for(p = 0; p<b; p++){
+		int ok = waitpid(childB[p],&status,WNOHANG);
+		if (ok != 0) {
+			estado[p] = 1;
+		}			
+	} 
+	for(p = 0; p < cont; p++){
+		if(p%2 == 0){
+			if(estado[p] == 0) printf("[%d]+ Ejecutando 	%s\n",p+1,arjobs[p]);
+                	else if(estado[p] == 1) printf("[%d]+ Hecho 	%s\n",p+1,arjobs[p]);		
+		} else {
+			if(estado[p] == 0) printf("[%d]- Ejecutando 	%s\n",p+1,arjobs[p]);
+                	else if(estado[p] == 1) printf("[%d]- Hecho 	%s\n",p+1,arjobs[p]);
+		}
+	
+	}
+
+
+
+}
 
 
 
