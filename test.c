@@ -9,6 +9,14 @@
 #include <errno.h>
 #include "parser.h"
 
+struct hijoPosiJobs{
+	int posi;
+	int pidB;
+	char man[1024];
+	int bloque;
+};
+
+
 pid_t pid;
 int p_par[2];
 int p_impar[2];
@@ -16,30 +24,37 @@ int status;
 int a,b,c; //contador arrays hijos y jobs
 int* childB;
 int* estado;
-int done1, done2 = 0; //done1: el jobs impar ya ha acabado, no lo muestra mas
-		  //done2: el jobs par ya ha acabado, no lo muestra mas
+int* estado2;
+int* estado3;
+int auxEstado;
 
+struct hijoPosiJobs arjobs[50];
 
 
 int cd(tcommand * com);
 int umaskC(tcommand * com);
 void fg(int* hijoB, tcommand * com);
-void jobs(char** arj, int cont);
+void jobs(tline * li);
+char* copiarString(char* in);
+
+
 
 int
 main(void) {
 	char buf[1024];
-	char aux[1024];
 	tline * line;
 	int i;
-	char *arjobs[50];
+	auxEstado = 0;
+	
 	
 	int* child;
 	
 	b = 0;
 	childB = (int*)malloc(sizeof(int));
 	estado = (int*)malloc(sizeof(int));
-		
+	estado2 = (int*)malloc(sizeof(int));
+	estado3 = (int*)malloc(sizeof(int));
+			
 	c = 0;
 	
 	printf("msh> ");
@@ -60,7 +75,7 @@ main(void) {
 			}
 			else if(strcmp(line->commands[0].argv[0], "umask") == 0) umaskC(line->commands);
 			else if(strcmp(line->commands[0].argv[0], "fg") == 0) fg(childB,line->commands);
-			else if(strcmp(line->commands[0].argv[0], "jobs") == 0) jobs(arjobs,c);
+			else if(strcmp(line->commands[0].argv[0], "jobs") == 0) jobs(line);
 			else if(line->commands[0].filename == NULL) printf("%s: no se encuentra el mandato\n",line->commands[0].argv[0]);
 			else {		 					
 				if (line->redirect_input != NULL) {
@@ -85,8 +100,9 @@ main(void) {
 				if (line->background) {
 					//printf("comando a ejecutarse en background\n");
 					buf[strlen(buf) -1] = '\0';
-					strcpy(aux,buf);
-					arjobs[c] = aux;
+					strcpy(arjobs[c].man,buf);
+					arjobs[c].posi = c;
+					arjobs[c].bloque = line -> ncommands;
 					c++;
 				}
 				for (i=0; i<line->ncommands; i++) {
@@ -164,12 +180,17 @@ main(void) {
 					
 					} else { //Padre
 						if (line->background){	
-							printf("[%d]: %d\n",c,pid);						
+							if(i == line->ncommands - 1){
+								printf("[%d]: %d\n",c,pid);
+							}						
 							childB[b] = pid;
+							arjobs[c].pidB = pid;
 							//printf("Hijo en background %d: %d\n",b,childB[b]);
 							b++;	
 							childB = realloc(childB, (b+1)*sizeof(int));		
 							estado = realloc(estado, (b+1)*sizeof(int));
+							estado2 = realloc(estado2, (b+1)*sizeof(int));
+							estado3 = realloc(estado2, (b+1)*sizeof(int));
 							
 						} else {
 							child[a] = pid;
@@ -195,11 +216,9 @@ main(void) {
 				
 				//HIJOS EN BACKGROUND
 				int p;
+				
 				for(p = 0; p<b; p++){
-					int ok = waitpid(childB[p],&status,WNOHANG);
-					if (ok != 0) {
-						estado[p] = 1;
-					}			
+					waitpid(childB[p],&status,WNOHANG);			
 				} 
 				
 				//HIJOS EN FOREGROUND
@@ -207,6 +226,29 @@ main(void) {
 				for(o = 0; o<a; o++){
 					waitpid(child[o],&status,0);			
 				}
+				
+				/*for(p = 0; p < b; p++){
+					if (ok != 0){
+						for(int l = 0; l < b; l++){ 
+							estado2[l] = 1;
+							if(childB[p] == arjobs[l].pidB){
+								if(arjobs[l].posi % 2 == 0){ 
+									if(estado3[l] != 1){
+										printf("[%d]+ Hecho 		%s\n",arjobs[l].posi+1, arjobs[l].man);
+									}
+									estado3[l] = 1;
+								
+								}
+								else{
+									if(estado3[l] != 1){
+										printf("[%d]- Hecho 		%s\n",arjobs[l].posi+1, arjobs[l].man);
+									}
+									estado3[l] = 1;
+								}
+							}
+						}
+					}
+				}*/
 				
 				
 				
@@ -269,51 +311,79 @@ int umaskC(tcommand * com){
 
 void fg(int* hijoB, tcommand * com){
 	int num;
-	num = strtol(com->argv[1],NULL,10);
 	if(com -> argc == 1) {
 		printf("msh: actual: no existe ese trabajo");
 		//si hay en bg, pasar a fg el ultimo de la lista
 	} else if(com -> argc == 2){
 		num = strtol(com->argv[1],NULL,10);
+		num--;
 		if(num < b) waitpid(hijoB[num], &status, 0);
 	} 
 	
 }
 
-void jobs(char** arj,int cont){	
+void jobs(tline * li){	
 	int p;
-	for(p = 0; p<b; p++){
-		int ok = waitpid(childB[p],&status,WNOHANG);
-		if (ok != 0) {
+	int ok;
+	int contador = 0;
+	for(p = 0; p<c; p++){
+		printf("auxEstado: %d\n",auxEstado);
+		printf("Num bloques: %d\n",arjobs[p].bloque);
+		for(int k = auxEstado; k < arjobs[p].bloque + auxEstado; k++){
+			printf("k: %d\n",k);
+			ok = waitpid(childB[k],&status,WNOHANG);
+			printf("ok: %d\n",ok);
+			if (ok < 0) contador++;
+		}
+		if (contador == arjobs[p].bloque) { //el proceso en bg ha terminado
+			printf("p: %d\n",p);
 			estado[p] = 1;
+			printf("estado de 0: %d\n",estado[0]);
 		}			
 	} 
-	for(int i = 0; i < cont; i++){
+	
+	for(int i = 0; i < c; i++){
 		if(i%2 == 0){
 			if(estado[i] == 0){ 
-				printf("[%d]+ Ejecutando 	%s\n",i+1,arj[i]);
-				done1 = 0;
+				printf("[%d]+ Ejecutando 		%s\n",i+1,arjobs[i].man);
 			}
-                	else if(estado[i] == 1){ 
-                		if(done1 != 1) printf("[%d]+ Hecho 	%s\n",i+1,arj[i]);
-                		done1 = 1;               	
-                	}		
+                	else if(estado[i] == 1){
+                      		if(estado2[i] != 1) printf("[%d]+ Hecho 			%s\n",i+1,arjobs[i].man);             	
+                		estado2[i] = 1;
+                	}
+                		
 		} else {
 			if(estado[i] == 0){ 
-				printf("[%d]- Ejecutando 	%s\n",i+1,arj[i]);
-				done2 = 0;
+				printf("[%d]- Ejecutando 		%s\n",i+1,arjobs[i].man);
 			}
                 	else if(estado[i] == 1){ 
-                		if(done2 != 1) printf("[%d]- Hecho 	%s\n",i+1,arj[i]);
-                		done2 = 1;
-                	}
+                		if(estado2[i] != 1) printf("[%d]- Hecho 			%s\n",i+1,arjobs[i].man);
+                		estado2[i] = 1;
+                  	}
+                	
 		}
 	
 	}
-
+	
+	int z = 0;
+	int fin = 0;
+	
+	while(estado[z] == 1){
+		fin++;
+		auxEstado = auxEstado + arjobs[z].bloque;
+		z++;
+	} 
+	
+	
+	if(fin == c){
+		for(int h = 0; h < b; h++) estado[h] = 0;
+		for(int h2 = 0; h2 < c; h2++) estado2[h2] = 0;
+		c = 0;	
+	}	
 
 
 }
+
 
 
 
