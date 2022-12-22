@@ -449,8 +449,6 @@ void* repartirFinal(){
 
 	while((terminado[0] == 0) || (terminado[1] == 0) || (terminado[2] == 0));	//Esperamos a que las 3 farmacias terminen de fabricar
 	
-	//for(i = 0; i < 5; i++) vacunasCentro[i] = 0;		//Ponemos las vacunas de cada centro a cero
-	
 	while((tanda*(hab/10) + vacunadosTanda) < hab) {	//Mientras no se vacune todo el mundo seguimos comprobando
 		tiempoRep = rand() % (tReparto) + 1; 		//numero aleatrio de tiempo de reparto (entre 1 y tReparto)
 		sleep(tiempoRep);
